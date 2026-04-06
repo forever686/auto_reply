@@ -49,7 +49,7 @@ async function queryAssistant(payload) {
   });
 
   return {
-    success: providerResponse.success !== false,
+    success: providerResponse.success !== false && replyResponse.success !== false,
     agent_type: agentType || providerResponse.provider || "",
     product,
     problem_type: problemType,
@@ -57,7 +57,7 @@ async function queryAssistant(payload) {
       providerResponse.doc_title ||
       (providerResponse.success === false ? "" : `${product || "Matched"} document`),
     doc_link: providerResponse.doc_link || "",
-    reply_en: providerResponse.success === false ? "" : replyResponse.reply || "",
+    reply_en: providerResponse.success === false || replyResponse.success === false ? "" : replyResponse.reply || "",
     confidence:
       typeof providerResponse.confidence === "number"
         ? providerResponse.confidence

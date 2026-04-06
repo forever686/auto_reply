@@ -33,7 +33,8 @@ function buildReplyPrompt(context) {
 
   return [
     "You are a customer support reply assistant.",
-    "Write one concise, helpful English reply for the customer.",
+    "Return strict JSON only with this shape: {\"answer\":\"...\",\"claims\":[{\"source_id\":\"...\",\"quote\":\"exact supporting text\"}]}",
+    "Write one concise, helpful English reply for the customer in the answer field.",
     "Answer the current customer question directly before offering any extra help.",
     "Base the reply only on the provided retrieval context and reply rules.",
     "Treat the matched source excerpts as evidence and use them when they answer the question.",
@@ -84,75 +85,33 @@ function buildFallbackReply(context) {
   });
 }
 
-function buildNoResultReply(context) {
-  return [
-    "Hello, thank you for your message.",
-    `We could not find relevant information for ${context.product || "the requested product"} in the retrieved materials.`,
-    "Please share more specific product details or updated documents if you would like us to check again."
-  ].join(" ");
-}
-
-function buildUnsupportedReply(context) {
-  return [
-    "Hello, thank you for your message.",
-    `We could not find confirmed information for ${context.product || "the requested product"} in the retrieved materials.`,
-    "To keep the reply accurate, we are not able to confirm details beyond the retrieved evidence right now."
-  ].join(" ");
-}
-
-function getEvidenceText(context) {
-  return [
-    context.docTitle,
-    context.docLink,
-    ...(Array.isArray(context.sources)
-      ? context.sources.flatMap((source) =>
-          typeof source === "string"
-            ? [source]
-            : [source.title, source.excerpt, source.url]
-        )
-      : [])
-  ]
-    .filter(Boolean)
-    .join("\n")
-    .toLowerCase();
-}
-
-function extractAnswerClaims(reply) {
-  const text = String(reply || "");
-  return Array.from(
-    new Set(
-      [
-        ...(text.match(/\b\d+(?:[.,]\d+)?\s*(?:元|rmb|usd|\$)\b/gi) || []),
-        ...(text.match(/\bfree shipping\b/gi) || []),
-        ...(text.match(/\brefund\b/gi) || []),
-        ...(text.match(/\bwarranty\b/gi) || [])
-      ].map((claim) => claim.toLowerCase())
-    )
-  );
-}
-
-function validateReplyAgainstEvidence(reply, context) {
-  const evidenceText = getEvidenceText(context);
-  if (!evidenceText.trim()) {
+function parseStructuredReply(text) {
+  const rawText = String(text || "").trim();
+  if (!rawText) {
     return {
-      valid: false,
-      reason: "no_evidence"
+      answer: "",
+      claims: [],
+      rawText
     };
   }
 
-  const claims = extractAnswerClaims(reply);
-  const unsupportedClaims = claims.filter((claim) => !evidenceText.includes(claim));
-  if (unsupportedClaims.length > 0) {
+  const fencedMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const parseTarget = fencedMatch ? fencedMatch[1].trim() : rawText;
+
+  try {
+    const parsed = JSON.parse(parseTarget);
     return {
-      valid: false,
-      reason: `unsupported_claims:${unsupportedClaims.join(", ")}`
+      answer: String(parsed?.answer || "").trim(),
+      claims: Array.isArray(parsed?.claims) ? parsed.claims : [],
+      rawText
+    };
+  } catch {
+    return {
+      answer: rawText,
+      claims: [],
+      rawText
     };
   }
-
-  return {
-    valid: true,
-    reason: ""
-  };
 }
 
 async function callOllama(settings, prompt) {
@@ -363,6 +322,7 @@ async function generateReply(context) {
 
   if (provider === "template") {
     return {
+      success: true,
       reply: fallbackReply,
       provider: "template",
       model: "",
@@ -375,33 +335,11 @@ async function generateReply(context) {
 
   try {
     const response = await runModelPrompt(context.replySettings, prompt);
-    const reply = String(response.text || "").trim() || fallbackReply;
-    const validation = validateReplyAgainstEvidence(reply, context);
-
-    if (!validation.valid) {
-      return {
-        reply:
-          validation.reason === "no_evidence"
-            ? buildNoResultReply(context)
-            : buildUnsupportedReply(context),
-        provider: response.provider,
-        model: response.model,
-        promptPreview: prompt,
-        rulesFile: rules.path,
-        notes: [
-          rules.error,
-          validation.reason === "no_evidence"
-            ? "No retrieved evidence was available, so a no-result fallback reply was used."
-            : `Model reply was rejected because it was not supported by the retrieved evidence: ${validation.reason}`
-        ]
-          .filter(Boolean)
-          .join(" "),
-        rawOutput: JSON.stringify(response.raw, null, 2),
-        endpoint: response.endpoint
-      };
-    }
+    const structuredReply = parseStructuredReply(response.text || "");
+    const reply = structuredReply.answer || fallbackReply;
 
     return {
+      success: true,
       reply,
       provider: response.provider,
       model: response.model,
@@ -413,12 +351,13 @@ async function generateReply(context) {
     };
   } catch (error) {
     return {
-      reply: fallbackReply,
+      success: false,
+      reply: "",
       provider,
       model: String(context?.replySettings?.model || "").trim(),
       promptPreview: prompt,
       rulesFile: rules.path,
-      notes: [rules.error, `Model generation failed, fallback template used: ${error.message}`]
+      notes: [rules.error, `Model generation failed: ${error.message}`]
         .filter(Boolean)
         .join(" "),
       rawOutput: ""

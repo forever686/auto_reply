@@ -14,7 +14,15 @@
             <p class="eyebrow">Customer Support Copilot</p>
             <h1>&#35828;&#26126;&#20070;&#26597;&#35810; + &#22238;&#22797;&#29983;&#25104;</h1>
           </div>
-          <button id="openSettingsButton" class="ghost-button" type="button">&#35774;&#32622;</button>
+          <button
+            id="openSettingsButton"
+            class="ghost-button icon-only-button"
+            type="button"
+            aria-label="设置"
+            title="设置"
+          >
+            ⚙
+          </button>
         </div>
         <p class="hero-copy">
           &#31896;&#36148;&#23458;&#25143;&#28040;&#24687;&#65292;&#25110;&#34917;&#20805;&#21830;&#21697;&#20449;&#24687;&#65292;&#35753;&#20195;&#29702;&#33258;&#21160;&#26597;&#35810;&#39134;&#20070;&#25991;&#26723;&#24182;&#36820;&#22238;&#32467;&#26524;&#12290;
@@ -78,7 +86,19 @@
         </div>
 
         <article class="result-card reply-card">
-          <h3>&#24314;&#35758;&#22238;&#22797;</h3>
+          <div class="card-title-row">
+            <h3>&#24314;&#35758;&#22238;&#22797;</h3>
+            <button
+              id="copyReplyButton"
+              class="icon-button"
+              type="button"
+              aria-label="复制回复"
+              title="复制回复"
+              disabled
+            >
+              &#10697;
+            </button>
+          </div>
           <pre id="replyText">-</pre>
         </article>
 
@@ -117,7 +137,15 @@
           <p class="settings-eyebrow">Settings</p>
           <h2>&#37197;&#32622;</h2>
         </div>
-        <button id="closeSettingsButton" class="ghost-button" type="button">&#20851;&#38381;</button>
+        <button
+          id="closeSettingsButton"
+          class="ghost-button icon-only-button"
+          type="button"
+          aria-label="关闭设置"
+          title="关闭设置"
+        >
+          ✕
+        </button>
       </div>
 
       <section class="reply-settings">

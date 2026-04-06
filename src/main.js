@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, clipboard, ipcMain } = require("electron");
 const { queryAssistant } = require("./query/orchestrator");
 const { testReplyProviderConnection } = require("./query/reply-generator");
 const { getCommandPreview } = require("./query/providers");
@@ -32,6 +32,11 @@ ipcMain.handle("assistant:get-default-command", (_event, agentType) => {
 
 ipcMain.handle("assistant:test-reply-connection", (_event, replySettings) => {
   return testReplyProviderConnection(replySettings);
+});
+
+ipcMain.handle("assistant:copy-text", (_event, text) => {
+  clipboard.writeText(String(text || ""));
+  return { success: true };
 });
 
 app.whenReady().then(() => {

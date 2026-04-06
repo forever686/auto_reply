@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld("assistantApi", {
   },
   testReplyConnection(replySettings) {
     return ipcRenderer.invoke("assistant:test-reply-connection", replySettings);
+  },
+  copyText(text) {
+    return ipcRenderer.invoke("assistant:copy-text", text);
   }
 });
