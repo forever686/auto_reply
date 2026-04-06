@@ -1,0 +1,4 @@
+node_modules/
+.agent-home/
+.agent-runtime/
+nul

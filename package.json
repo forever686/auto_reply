@@ -1,0 +1,13 @@
+{
+  "name": "auto-reply-assistant",
+  "version": "0.1.0",
+  "description": "Desktop popup that queries OpenClaw and returns manual links plus reply scripts.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/reply-generator.test.js && node test/feishu-cli-client.test.js"
+  },
+  "dependencies": {
+    "electron": "^37.2.6"
+  }
+}

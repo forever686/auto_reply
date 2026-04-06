@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>&#23458;&#26381;&#22238;&#22797;&#21161;&#25163;</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Customer Support Copilot</p>
+            <h1>&#35828;&#26126;&#20070;&#26597;&#35810; + &#22238;&#22797;&#29983;&#25104;</h1>
+          </div>
+          <button id="openSettingsButton" class="ghost-button" type="button">&#35774;&#32622;</button>
+        </div>
+        <p class="hero-copy">
+          &#31896;&#36148;&#23458;&#25143;&#28040;&#24687;&#65292;&#25110;&#34917;&#20805;&#21830;&#21697;&#20449;&#24687;&#65292;&#35753;&#20195;&#29702;&#33258;&#21160;&#26597;&#35810;&#39134;&#20070;&#25991;&#26723;&#24182;&#36820;&#22238;&#32467;&#26524;&#12290;
+        </p>
+      </section>
+
+      <section class="panel">
+        <form id="query-form" class="form">
+          <label class="field">
+            <span>&#23458;&#25143;&#28040;&#24687;</span>
+            <textarea
+              id="customerMessage"
+              name="customerMessage"
+              rows="7"
+              placeholder="&#20363;&#22914;&#65306;&#24744;&#22909;&#65292;&#25105;&#20080;&#20102;&#20320;&#20204;&#30340;&#21654;&#21857;&#26426;&#65292;&#20294;&#26159;&#21253;&#35013;&#37324;&#27809;&#26377;&#35828;&#26126;&#20070;&#65292;&#21487;&#20197;&#21457;&#25105; PDF &#21527;&#65311;"
+              required
+            ></textarea>
+          </label>
+
+          <label class="field">
+            <span>&#21830;&#21697;&#20449;&#24687;&#65288;&#21487;&#36873;&#65289;</span>
+            <input
+              id="productHint"
+              name="productHint"
+              type="text"
+              placeholder="&#20363;&#22914;&#65306;ABC Coffee Maker 1.2L / SKU ABC-1200"
+            />
+          </label>
+
+          <input id="agentType" name="agentType" type="hidden" value="feishu" />
+          <input id="agentCommand" name="agentCommand" type="hidden" value="" />
+
+          <div id="agentHint" class="agent-hint"></div>
+
+          <button id="submitButton" type="submit">&#24320;&#22987;&#26597;&#35810;</button>
+        </form>
+
+        <div id="status" class="status idle">
+          &#26597;&#35810;&#21069;&#20250;&#20808;&#23637;&#31034;&#23454;&#38469;&#35201;&#35843;&#29992;&#30340;&#20195;&#29702;&#21629;&#20196;&#12290;&#26410;&#37197;&#32622;&#25104;&#21151;&#26102;&#65292;&#19981;&#20250;&#36820;&#22238;&#20219;&#20309;&#20551;&#25968;&#25454;&#12290;
+        </div>
+      </section>
+
+      <section id="resultPanel" class="panel result-panel hidden">
+        <div class="result-header">
+          <h2>&#26597;&#35810;&#32467;&#26524;</h2>
+          <span id="confidenceBadge" class="confidence-badge">0%</span>
+        </div>
+
+        <div class="result-grid">
+          <article class="result-card">
+            <h3>&#25991;&#26723;&#20449;&#24687;</h3>
+            <p id="docTitle" class="result-title">-</p>
+            <a id="docLink" href="#" target="_blank" rel="noreferrer">-</a>
+          </article>
+
+          <article class="result-card">
+            <h3>&#35782;&#21035;&#32467;&#26524;</h3>
+            <p id="problemType">-</p>
+            <p id="productName" class="subtle">-</p>
+          </article>
+        </div>
+
+        <article class="result-card reply-card">
+          <h3>&#24314;&#35758;&#22238;&#22797;</h3>
+          <pre id="replyText">-</pre>
+        </article>
+
+        <article class="result-card">
+          <h3>&#21629;&#20013;&#26469;&#28304;</h3>
+          <ul id="sourcesList" class="sources-list"></ul>
+        </article>
+
+        <article class="result-card">
+          <h3>&#22791;&#27880;</h3>
+          <p id="notes">-</p>
+        </article>
+
+        <article class="result-card">
+          <h3>&#25191;&#34892;&#21453;&#39304;</h3>
+          <div class="feedback-grid">
+            <p><strong>&#20195;&#29702;&#65306;</strong><span id="agentName">-</span></p>
+            <p><strong>&#29366;&#24577;&#65306;</strong><span id="runStatus">-</span></p>
+          </div>
+          <p class="command-label"><strong>&#23454;&#38469;&#35843;&#29992;&#65306;</strong></p>
+          <pre id="commandPreview" class="command-preview">-</pre>
+          <p class="command-label"><strong>&#35831;&#27714;&#25688;&#35201;&#65306;</strong></p>
+          <pre id="requestPreview" class="command-preview">-</pre>
+          <p class="command-label"><strong>Prompt&#65306;</strong></p>
+          <pre id="promptPreview" class="command-preview">-</pre>
+          <p class="command-label"><strong>&#21407;&#22987;&#36755;&#20986; / &#38169;&#35823;&#65306;</strong></p>
+          <pre id="rawOutput" class="command-preview">-</pre>
+        </article>
+      </section>
+    </main>
+
+    <div id="settingsBackdrop" class="settings-backdrop hidden"></div>
+    <aside id="settingsPanel" class="settings-panel hidden" aria-hidden="true">
+      <div class="settings-header">
+        <div>
+          <p class="settings-eyebrow">Settings</p>
+          <h2>&#37197;&#32622;</h2>
+        </div>
+        <button id="closeSettingsButton" class="ghost-button" type="button">&#20851;&#38381;</button>
+      </div>
+
+      <section class="reply-settings">
+        <label class="checkbox-field">
+          <input id="tenantOnly" name="tenantOnly" type="checkbox" checked />
+          <span>&#20165;&#20351;&#29992;&#26412;&#31199;&#25143;&#25991;&#26723;</span>
+        </label>
+
+        <h3>&#22238;&#22797;&#29983;&#25104;</h3>
+
+        <label class="field">
+          <span>&#22238;&#22797;&#27169;&#22411;</span>
+          <select id="replyProvider" name="replyProvider">
+            <option value="template">&#19981;&#20351;&#29992;&#27169;&#22411;&#65288;&#27169;&#26495;&#65289;</option>
+            <option value="ollama">Ollama</option>
+            <option value="openai-compatible">OpenAI Compatible</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>&#27169;&#22411;&#21517;&#31216;</span>
+          <input
+            id="replyModel"
+            name="replyModel"
+            type="text"
+            placeholder="&#20363;&#22914;&#65306;qwen2.5:7b / gpt-4o-mini / deepseek-chat"
+          />
+        </label>
+
+        <label class="field">
+          <span>Base URL</span>
+          <input
+            id="replyBaseUrl"
+            name="replyBaseUrl"
+            type="text"
+            placeholder="&#20363;&#22914;&#65306;http://127.0.0.1:11434 &#25110; https://api.openai.com/v1"
+          />
+        </label>
+
+        <label id="replyApiKeyField" class="field">
+          <span>API Key</span>
+          <input
+            id="replyApiKey"
+            name="replyApiKey"
+            type="password"
+            placeholder="OpenAI Compatible &#27169;&#24335;&#38656;&#35201;"
+          />
+        </label>
+
+        <label class="field">
+          <span>&#22238;&#22797;&#32422;&#23450;&#25991;&#20214;&#65288;&#21487;&#36873;&#65289;</span>
+          <input
+            id="replyRulesPath"
+            name="replyRulesPath"
+            type="text"
+            placeholder="&#20363;&#22914;&#65306;D:\\docs\\reply-rules.md"
+          />
+        </label>
+
+        <div class="reply-test-row">
+          <button id="testReplyConnectionButton" type="button">&#27979;&#35797;&#27169;&#22411;&#36830;&#25509;</button>
+          <p id="replyConnectionStatus" class="inline-status idle">&#35831;&#36873;&#25321;&#37197;&#32622;&#21518;&#36827;&#34892;&#36830;&#25509;&#27979;&#35797;&#12290;</p>
+        </div>
+      </section>
+    </aside>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>
