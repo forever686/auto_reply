@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld("assistantApi", {
   testReplyConnection(replySettings) {
     return ipcRenderer.invoke("assistant:test-reply-connection", replySettings);
   },
+  onQueryProgress(callback) {
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on("assistant:query-progress", listener);
+    return () => ipcRenderer.removeListener("assistant:query-progress", listener);
+  },
   copyText(text) {
     return ipcRenderer.invoke("assistant:copy-text", text);
   }

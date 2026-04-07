@@ -114,6 +114,48 @@ function parseStructuredReply(text) {
   }
 }
 
+function sourceEvidenceText(sources) {
+  return (Array.isArray(sources) ? sources : [])
+    .map((source) => {
+      if (typeof source === "string") {
+        return source;
+      }
+
+      return [source.title, source.excerpt, source.url].filter(Boolean).join("\n");
+    })
+    .join("\n")
+    .toLowerCase();
+}
+
+function hasUnsupportedClaims(claims, sources) {
+  if (!Array.isArray(claims) || claims.length === 0) {
+    return false;
+  }
+
+  const evidenceText = sourceEvidenceText(sources);
+  if (!evidenceText) {
+    return true;
+  }
+
+  return claims.some((claim) => {
+    const quote = String(claim?.quote || "").trim().toLowerCase();
+    return quote && !evidenceText.includes(quote);
+  });
+}
+
+function buildUnsupportedReply(context) {
+  const productText = context.product ? ` for ${context.product}` : "";
+  const linkText = context.docLink ? ` The closest document I found is: ${context.docLink}` : "";
+
+  return [
+    `Hello, thank you for your message. I could not confirm the requested details${productText} from the retrieved support materials.`,
+    linkText,
+    "Please share any additional product label, SKU, or order details so we can check again."
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 async function callOllama(settings, prompt) {
   const baseUrl = String(settings?.baseUrl || "").trim() || "http://127.0.0.1:11434";
   const model = String(settings?.model || "").trim() || "qwen2.5:7b";
@@ -336,7 +378,9 @@ async function generateReply(context) {
   try {
     const response = await runModelPrompt(context.replySettings, prompt);
     const structuredReply = parseStructuredReply(response.text || "");
-    const reply = structuredReply.answer || fallbackReply;
+    const reply = hasUnsupportedClaims(structuredReply.claims, context.sources)
+      ? buildUnsupportedReply(context)
+      : structuredReply.answer || fallbackReply;
 
     return {
       success: true,

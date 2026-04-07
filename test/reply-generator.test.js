@@ -244,8 +244,8 @@ run("generateReply falls back when the model claims unsupported information", as
       }
     });
 
-    assert.match(result.reply, /RMB 499/);
-    assert.doesNotMatch(result.reply, /could not find confirmed information/i);
+    assert.doesNotMatch(result.reply, /RMB 499/);
+    assert.match(result.reply, /could not confirm/i);
   } finally {
     global.fetch = originalFetch;
   }

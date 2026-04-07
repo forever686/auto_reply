@@ -22,10 +22,15 @@ const replyApiKeyField = document.getElementById("replyApiKeyField");
 const replyRulesPathInput = document.getElementById("replyRulesPath");
 const testReplyConnectionButton = document.getElementById("testReplyConnectionButton");
 const replyConnectionStatus = document.getElementById("replyConnectionStatus");
+const openHelpButton = document.getElementById("openHelpButton");
+const closeHelpButton = document.getElementById("closeHelpButton");
+const helpPanel = document.getElementById("helpPanel");
+const helpBackdrop = document.getElementById("helpBackdrop");
 const openSettingsButton = document.getElementById("openSettingsButton");
 const closeSettingsButton = document.getElementById("closeSettingsButton");
 const settingsPanel = document.getElementById("settingsPanel");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
+const progressSteps = document.getElementById("progressSteps");
 
 const REPLY_SETTINGS_STORAGE_KEY = "reply-settings";
 const SEARCH_SETTINGS_STORAGE_KEY = "search-settings";
@@ -71,10 +76,51 @@ function setInlineStatus(element, kind, message) {
   element.textContent = message;
 }
 
+function setProgressStep(step) {
+  const order = ["prepare", "retrieve", "reply"];
+  const currentIndex = order.indexOf(step);
+
+  progressSteps.classList.toggle("hidden", !step || step === "idle");
+  progressSteps.dataset.state = step || "idle";
+
+  for (const item of progressSteps.querySelectorAll("[data-progress-step]")) {
+    const itemStep = item.dataset.progressStep;
+    const itemIndex = order.indexOf(itemStep);
+    const isActive = itemStep === step;
+    const isComplete = step === "complete" || (currentIndex > itemIndex && currentIndex !== -1);
+
+    item.classList.toggle("active", isActive);
+    item.classList.toggle("complete", isComplete);
+    item.removeAttribute("aria-current");
+
+    if (isActive) {
+      item.setAttribute("aria-current", "step");
+    }
+  }
+}
+
 function setSettingsOpen(open) {
   settingsPanel.classList.toggle("hidden", !open);
   settingsBackdrop.classList.toggle("hidden", !open);
   settingsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+
+  if (open) {
+    closeSettingsButton.focus();
+  } else {
+    openSettingsButton.focus();
+  }
+}
+
+function setHelpOpen(open) {
+  helpPanel.classList.toggle("hidden", !open);
+  helpBackdrop.classList.toggle("hidden", !open);
+  helpPanel.setAttribute("aria-hidden", open ? "false" : "true");
+
+  if (open) {
+    closeHelpButton.focus();
+  } else {
+    openHelpButton.focus();
+  }
 }
 
 function setCopyReplyButtonState(state) {
@@ -114,6 +160,7 @@ function localizeProblemType(problemType) {
     delivery_delay: "Delivery delay",
     refund_request: "Refund / return",
     warranty_question: "Warranty question",
+    specification_question: "Specification question",
     other: "Other"
   };
 
@@ -204,9 +251,6 @@ function validateReplySettings(replySettings) {
 function renderResult(result) {
   resultPanel.classList.remove("hidden");
 
-  document.getElementById("confidenceBadge").textContent = `${Math.round(
-    (result.confidence || 0) * 100
-  )}%`;
   document.getElementById("docTitle").textContent = result.doc_title || "-";
 
   const docLink = document.getElementById("docLink");
@@ -253,6 +297,19 @@ replyRulesPathInput.value = savedReplySettings.replyRulesPath || "";
 syncReplyModelUi();
 refreshCommandPreview();
 syncCopyReplyButton("");
+setProgressStep("idle");
+
+if (window.assistantApi.onQueryProgress) {
+  window.assistantApi.onQueryProgress((progress) => {
+    const step = String(progress?.step || "");
+    if (step) {
+      setProgressStep(step);
+    }
+    if (progress?.message && step !== "complete") {
+      setStatus("loading", progress.message);
+    }
+  });
+}
 
 replyProviderInput.addEventListener("change", () => {
   const saved = loadReplySettings();
@@ -293,6 +350,18 @@ replyRulesPathInput.addEventListener("input", () => {
   saveReplySettings(saved);
 });
 
+openHelpButton.addEventListener("click", () => {
+  setHelpOpen(true);
+});
+
+closeHelpButton.addEventListener("click", () => {
+  setHelpOpen(false);
+});
+
+helpBackdrop.addEventListener("click", () => {
+  setHelpOpen(false);
+});
+
 openSettingsButton.addEventListener("click", () => {
   setSettingsOpen(true);
 });
@@ -303,6 +372,17 @@ closeSettingsButton.addEventListener("click", () => {
 
 settingsBackdrop.addEventListener("click", () => {
   setSettingsOpen(false);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !helpPanel.classList.contains("hidden")) {
+    setHelpOpen(false);
+    return;
+  }
+
+  if (event.key === "Escape" && !settingsPanel.classList.contains("hidden")) {
+    setSettingsOpen(false);
+  }
 });
 
 copyReplyButton.addEventListener("click", async () => {
@@ -390,6 +470,7 @@ form.addEventListener("submit", async (event) => {
   });
 
   resultPanel.classList.remove("hidden");
+  setProgressStep("prepare");
   agentNameElement.textContent = localizeAgentType(agentType);
   runStatusElement.textContent = "Running";
   requestPreviewElement.textContent = JSON.stringify(
@@ -409,10 +490,11 @@ form.addEventListener("submit", async (event) => {
   promptPreviewElement.textContent = "Waiting for the generated prompt...";
   rawOutputElement.textContent = "Waiting for provider output...";
   await refreshCommandPreview();
+  setProgressStep("retrieve");
 
   setStatus(
     "loading",
-    "Running Feishu retrieval and reply generation. Check the execution feedback card below for request, prompt, and raw output details."
+    "Step 2 of 3: retrieving Feishu documents and preparing the reply. Execution details are available below if you need to debug."
   );
 
   try {
@@ -425,12 +507,15 @@ form.addEventListener("submit", async (event) => {
       replySettings: currentReplySettings
     });
 
+    setProgressStep("reply");
     renderResult(result);
+    setProgressStep("complete");
     const summary = result.doc_link
       ? "Query completed. Review the document link and suggested reply below."
-      : "Query completed, but no matching document was found. Check the notes and execution feedback below.";
+      : "Query completed, but no matching document was found. Check the notes or expand execution details below.";
     setStatus(result.success === false ? "error" : "success", summary);
   } catch (error) {
+    setProgressStep("failed");
     runStatusElement.textContent = "Failed";
     promptPreviewElement.textContent = "-";
     rawOutputElement.textContent = error.message || "Unknown error";

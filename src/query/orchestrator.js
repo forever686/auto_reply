@@ -2,7 +2,7 @@ const { detectProblemType, deriveProductName, normalizeSources } = require("./pa
 const { runProvider } = require("./providers");
 const { extractSearchQueries, generateReply } = require("./reply-generator");
 
-async function queryAssistant(payload) {
+async function queryAssistant(payload, onProgress = () => {}) {
   const customerMessage = String(payload?.customerMessage || "").trim();
   const productHint = String(payload?.productHint || "").trim();
   const agentType = String(payload?.agentType || "").trim();
@@ -19,6 +19,10 @@ async function queryAssistant(payload) {
 
   const product = deriveProductName(customerMessage, productHint);
   const problemType = detectProblemType(customerMessage);
+  onProgress({
+    step: "prepare",
+    message: "Step 1 of 3: preparing the request and search keywords."
+  });
   const keywordResponse = await extractSearchQueries({
     customerMessage,
     productHint,
@@ -27,6 +31,10 @@ async function queryAssistant(payload) {
     replySettings
   });
 
+  onProgress({
+    step: "retrieve",
+    message: "Step 2 of 3: retrieving matching Feishu documents."
+  });
   const providerResponse = await runProvider({
     customerMessage,
     productHint,
@@ -38,6 +46,10 @@ async function queryAssistant(payload) {
     aiQueries: keywordResponse.queries
   });
 
+  onProgress({
+    step: "reply",
+    message: "Step 3 of 3: generating a customer-ready reply from the retrieved context."
+  });
   const replyResponse = await generateReply({
     customerMessage,
     product,
@@ -46,6 +58,10 @@ async function queryAssistant(payload) {
     docLink: providerResponse.doc_link || "",
     sources: normalizeSources(providerResponse.sources),
     replySettings
+  });
+  onProgress({
+    step: "complete",
+    message: "Query completed. Review the suggested reply and document match."
   });
 
   return {

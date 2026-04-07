@@ -44,6 +44,12 @@ function buildSearchQueries(payload) {
     queries.push(`${baseProduct} return policy`);
   }
 
+  if (baseProduct && problemType === "specification_question") {
+    queries.push(`${baseProduct} 容量`);
+    queries.push(`${baseProduct} 规格 参数`);
+    queries.push(`${baseProduct} capacity specification`);
+  }
+
   if (baseProduct) {
     queries.push(baseProduct);
   }
@@ -74,6 +80,11 @@ function resolveLarkCliCommand() {
 function buildCommandPreview(query) {
   const larkCliCommand = resolveLarkCliCommand();
   return `${larkCliCommand} docs +search --as user --query "${query}" --format json`;
+}
+
+function buildFetchCommandPreview(doc) {
+  const larkCliCommand = resolveLarkCliCommand();
+  return `${larkCliCommand} docs +fetch --as user --doc "${doc}" --format json`;
 }
 
 function escapePowershellSingleQuoted(value) {
@@ -162,12 +173,126 @@ function runLarkSearch(query, cwd) {
   });
 }
 
+function runLarkFetch(doc, cwd) {
+  const larkCliCommand = resolveLarkCliCommand();
+
+  return new Promise((resolve, reject) => {
+    const child =
+      process.platform === "win32"
+        ? spawn(
+            "powershell.exe",
+            [
+              "-NoProfile",
+              "-Command",
+              `& '${escapePowershellSingleQuoted(larkCliCommand)}' docs +fetch --as user --doc '${escapePowershellSingleQuoted(doc)}' --format json`
+            ],
+            {
+              stdio: ["ignore", "pipe", "pipe"],
+              windowsHide: true,
+              cwd,
+              env: process.env
+            }
+          )
+        : spawn(
+            larkCliCommand,
+            ["docs", "+fetch", "--as", "user", "--doc", doc, "--format", "json"],
+            {
+              stdio: ["ignore", "pipe", "pipe"],
+              windowsHide: true,
+              cwd,
+              env: process.env
+            }
+          );
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(
+          new Error([stderr.trim(), stdout.trim()].filter(Boolean).join("\n\n") || `lark-cli exited with code ${code}.`)
+        );
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (error) {
+        reject(new Error(`lark-cli returned invalid JSON. ${error.message}`));
+      }
+    });
+  });
+}
+
 function tokenize(text) {
   return String(text || "")
     .toLowerCase()
     .split(/[^a-z0-9-]+/)
     .map((part) => part.trim())
     .filter((part) => part.length >= 2);
+}
+
+function extractFetchedMarkdown(response) {
+  return String(
+    response?.data?.markdown ||
+      response?.markdown ||
+      response?.data?.content ||
+      response?.content ||
+      response?.data?.text ||
+      ""
+  ).trim();
+}
+
+function mergeExcerpt(summary, markdown) {
+  const parts = [summary, markdown]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+
+  return parts.join("\n\n").slice(0, 6000);
+}
+
+async function enrichSourcesWithFetchedContent(sources, cwd, rawOutputs) {
+  const enrichedSources = [];
+
+  for (const source of sources) {
+    if (!source.url) {
+      enrichedSources.push(source);
+      continue;
+    }
+
+    try {
+      const response = await runLarkFetch(source.url, cwd);
+      rawOutputs.push(JSON.stringify({ fetch: source.url, response }, null, 2));
+      const markdown = extractFetchedMarkdown(response);
+      enrichedSources.push({
+        ...source,
+        excerpt: mergeExcerpt(source.excerpt, markdown)
+      });
+    } catch (error) {
+      rawOutputs.push(
+        JSON.stringify(
+          {
+            fetch: source.url,
+            error: error.message || "Unable to fetch document content."
+          },
+          null,
+          2
+        )
+      );
+      enrichedSources.push(source);
+    }
+  }
+
+  return enrichedSources;
 }
 
 function stripHighlightTags(text) {
@@ -221,6 +346,10 @@ function scoreResult(result, payload, query) {
   }
 
   if (problemType === "refund_request" && /(refund|return)/.test(haystack)) {
+    score += 25;
+  }
+
+  if (problemType === "specification_question" && /(容量|规格|参数|price|capacity|specification|型号|sku)/i.test(haystack)) {
     score += 25;
   }
 
@@ -331,6 +460,7 @@ async function runFeishuCli(payload) {
 
   aggregatedResults.sort((left, right) => right.result._score - left.result._score);
   const best = aggregatedResults[0];
+  const cwd = path.resolve(process.cwd());
   const topSources = aggregatedResults.slice(0, 3).map(({ result }) => ({
     id: result?.result_meta?.token || result?.title_highlighted || "feishu_result",
     type: "feishu",
@@ -338,6 +468,7 @@ async function runFeishuCli(payload) {
     excerpt: stripHighlightTags(result?.summary_highlighted || ""),
     url: result?.result_meta?.url || ""
   }));
+  const enrichedSources = await enrichSourcesWithFetchedContent(topSources, cwd, rawOutputs);
 
   return {
     success: true,
@@ -348,11 +479,11 @@ async function runFeishuCli(payload) {
     doc_link: best.result?.result_meta?.url || "",
     reply_en: "",
     confidence: Math.min(0.95, 0.45 + best.result._score / 100),
-    sources: topSources,
+    sources: enrichedSources,
     command_preview: buildCommandPreview(best.query),
     prompt_preview: promptPreview,
     raw_output: rawOutputs.join("\n\n"),
-    notes: `Matched via Feishu CLI search using query "${best.query}". Tenant-only filter: ${tenantOnly ? "on" : "off"}.`,
+    notes: `Matched via Feishu CLI search using query "${best.query}". Tenant-only filter: ${tenantOnly ? "on" : "off"}. Fetched document content for top sources.`,
     extracted_queries: queries
   };
 }
@@ -361,5 +492,6 @@ module.exports = {
   runFeishuCli,
   getCommandPreview,
   getPromptPreview,
+  buildFetchCommandPreview,
   filterSearchResultsForTenant
 };

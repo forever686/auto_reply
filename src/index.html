@@ -14,15 +14,26 @@
             <p class="eyebrow">Customer Support Copilot</p>
             <h1>&#35828;&#26126;&#20070;&#26597;&#35810; + &#22238;&#22797;&#29983;&#25104;</h1>
           </div>
-          <button
-            id="openSettingsButton"
-            class="ghost-button icon-only-button"
-            type="button"
-            aria-label="设置"
-            title="设置"
-          >
-            ⚙
-          </button>
+          <div class="hero-actions">
+            <button
+              id="openHelpButton"
+              class="ghost-button icon-only-button"
+              type="button"
+              aria-label="使用帮助"
+              title="使用帮助"
+            >
+              ?
+            </button>
+            <button
+              id="openSettingsButton"
+              class="ghost-button icon-only-button"
+              type="button"
+              aria-label="设置"
+              title="设置"
+            >
+              ⚙
+            </button>
+          </div>
         </div>
         <p class="hero-copy">
           &#31896;&#36148;&#23458;&#25143;&#28040;&#24687;&#65292;&#25110;&#34917;&#20805;&#21830;&#21697;&#20449;&#24687;&#65292;&#35753;&#20195;&#29702;&#33258;&#21160;&#26597;&#35810;&#39134;&#20070;&#25991;&#26723;&#24182;&#36820;&#22238;&#32467;&#26524;&#12290;
@@ -63,12 +74,17 @@
         <div id="status" class="status idle">
           &#26597;&#35810;&#21069;&#20250;&#20808;&#23637;&#31034;&#23454;&#38469;&#35201;&#35843;&#29992;&#30340;&#20195;&#29702;&#21629;&#20196;&#12290;&#26410;&#37197;&#32622;&#25104;&#21151;&#26102;&#65292;&#19981;&#20250;&#36820;&#22238;&#20219;&#20309;&#20551;&#25968;&#25454;&#12290;
         </div>
+
+        <ol id="progressSteps" class="progress-steps hidden" aria-label="查询进度">
+          <li data-progress-step="prepare">准备请求</li>
+          <li data-progress-step="retrieve">检索飞书文档</li>
+          <li data-progress-step="reply">生成回复</li>
+        </ol>
       </section>
 
       <section id="resultPanel" class="panel result-panel hidden">
         <div class="result-header">
           <h2>&#26597;&#35810;&#32467;&#26524;</h2>
-          <span id="confidenceBadge" class="confidence-badge">0%</span>
         </div>
 
         <div class="result-grid">
@@ -112,8 +128,8 @@
           <p id="notes">-</p>
         </article>
 
-        <article class="result-card">
-          <h3>&#25191;&#34892;&#21453;&#39304;</h3>
+        <details id="executionDetails" class="result-card execution-details">
+          <summary>执行详情</summary>
           <div class="feedback-grid">
             <p><strong>&#20195;&#29702;&#65306;</strong><span id="agentName">-</span></p>
             <p><strong>&#29366;&#24577;&#65306;</strong><span id="runStatus">-</span></p>
@@ -126,12 +142,59 @@
           <pre id="promptPreview" class="command-preview">-</pre>
           <p class="command-label"><strong>&#21407;&#22987;&#36755;&#20986; / &#38169;&#35823;&#65306;</strong></p>
           <pre id="rawOutput" class="command-preview">-</pre>
-        </article>
+        </details>
       </section>
     </main>
 
+    <div id="helpBackdrop" class="settings-backdrop hidden"></div>
+    <aside
+      id="helpPanel"
+      class="side-panel help-panel hidden"
+      aria-hidden="true"
+      aria-modal="true"
+      role="dialog"
+      tabindex="-1"
+    >
+      <div class="settings-header">
+        <div>
+          <p class="settings-eyebrow">Help</p>
+          <h2>使用方法</h2>
+        </div>
+        <button
+          id="closeHelpButton"
+          class="ghost-button icon-only-button"
+          type="button"
+          aria-label="关闭使用帮助"
+          title="关闭使用帮助"
+        >
+          ✕
+        </button>
+      </div>
+
+      <section class="reply-settings">
+        <ol class="help-list">
+          <li>粘贴客户问题。</li>
+          <li>可选填写商品名、SKU 或型号，越具体越容易命中。</li>
+          <li>点击“开始查询”，等待飞书检索和回复生成完成。</li>
+          <li>查看文档信息、命中来源和建议回复。</li>
+          <li>如果查询不准，展开“执行详情”查看检索关键词，再补充更精确的商品信息。</li>
+          <li>使用模型回复前，请先在设置里配置 Ollama 或 OpenAI Compatible。</li>
+          <li>飞书 CLI：另一台电脑需要先安装 lark-cli，并用 <code>lark-cli auth login --domain 你的飞书域名</code> 登录授权。</li>
+          <li>飞书 CLI：用 <code>lark-cli docs +search --as user --query "咖啡机" --format json</code> 验证能搜索文档。</li>
+          <li>如果执行详情里出现 <code>need_user_authorization</code>，说明授权过期，需要重新运行 <code>lark-cli auth login</code>。</li>
+        </ol>
+      </section>
+    </aside>
+
     <div id="settingsBackdrop" class="settings-backdrop hidden"></div>
-    <aside id="settingsPanel" class="settings-panel hidden" aria-hidden="true">
+    <aside
+      id="settingsPanel"
+      class="side-panel settings-panel hidden"
+      aria-hidden="true"
+      aria-modal="true"
+      role="dialog"
+      tabindex="-1"
+    >
       <div class="settings-header">
         <div>
           <p class="settings-eyebrow">Settings</p>

@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/reply-generator.test.js && node test/feishu-cli-client.test.js"
+    "test": "node test/parsing.test.js && node test/reply-generator.test.js && node test/feishu-cli-client.test.js && node test/ui-source.test.js"
   },
   "dependencies": {
     "electron": "^37.2.6"

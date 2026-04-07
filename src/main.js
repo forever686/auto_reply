@@ -22,8 +22,10 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "index.html"));
 }
 
-ipcMain.handle("assistant:query", async (_event, payload) => {
-  return queryAssistant(payload);
+ipcMain.handle("assistant:query", async (event, payload) => {
+  return queryAssistant(payload, (progress) => {
+    event.sender.send("assistant:query-progress", progress);
+  });
 });
 
 ipcMain.handle("assistant:get-default-command", (_event, agentType) => {
