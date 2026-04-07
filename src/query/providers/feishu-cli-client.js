@@ -1,7 +1,5 @@
 const { spawn } = require("node:child_process");
-const fs = require("node:fs");
 const path = require("node:path");
-const WINDOWS_LARK_CLI_PATH = "D:\\npm-global\\lark-cli.cmd";
 
 function extractSku(text) {
   const match = String(text || "").match(/\bSKU[:\s-]*([A-Z0-9-]+)\b/i);
@@ -66,8 +64,8 @@ function resolveLarkCliCommand() {
     return configured;
   }
 
-  if (process.platform === "win32" && fs.existsSync(WINDOWS_LARK_CLI_PATH)) {
-    return WINDOWS_LARK_CLI_PATH;
+  if (process.platform === "win32") {
+    return "lark-cli.cmd";
   }
 
   return "lark-cli";
