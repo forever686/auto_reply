@@ -24,6 +24,20 @@ npm install
 npm start
 ```
 
+## Windows portable packaging
+
+```powershell
+npm run dist:win-portable
+```
+
+After the build completes, run the generated app from:
+
+```text
+dist/
+  win-unpacked/
+    auto-reply-assistant.exe
+```
+
 ## 当前调用方式
 
 当前版本不会再返回任何 mock 数据。

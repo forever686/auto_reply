@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld("assistantApi", {
   testReplyConnection(replySettings) {
     return ipcRenderer.invoke("assistant:test-reply-connection", replySettings);
   },
+  openExternal(url) {
+    return ipcRenderer.invoke("assistant:open-external", url);
+  },
   onQueryProgress(callback) {
     const listener = (_event, progress) => callback(progress);
     ipcRenderer.on("assistant:query-progress", listener);

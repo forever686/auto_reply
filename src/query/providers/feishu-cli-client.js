@@ -264,14 +264,15 @@ async function enrichSourcesWithFetchedContent(sources, cwd, rawOutputs) {
   const enrichedSources = [];
 
   for (const source of sources) {
-    if (!source.url) {
+    const fetchTarget = String(source.fetchTarget || source.id || source.url || "").trim();
+    if (!fetchTarget) {
       enrichedSources.push(source);
       continue;
     }
 
     try {
-      const response = await runLarkFetch(source.url, cwd);
-      rawOutputs.push(JSON.stringify({ fetch: source.url, response }, null, 2));
+      const response = await runLarkFetch(fetchTarget, cwd);
+      rawOutputs.push(JSON.stringify({ fetch: fetchTarget, response }, null, 2));
       const markdown = extractFetchedMarkdown(response);
       enrichedSources.push({
         ...source,
@@ -281,7 +282,7 @@ async function enrichSourcesWithFetchedContent(sources, cwd, rawOutputs) {
       rawOutputs.push(
         JSON.stringify(
           {
-            fetch: source.url,
+            fetch: fetchTarget,
             error: error.message || "Unable to fetch document content."
           },
           null,
@@ -319,6 +320,8 @@ function scoreResult(result, payload, query) {
   const sku = extractSku(payload?.productHint || payload?.product);
   const productTokens = tokenize(payload?.productHint || payload?.product);
   const problemType = String(payload?.problemType || "").trim();
+  const customerMessage = String(payload?.customerMessage || "").toLowerCase();
+  const asksForPrice = /(价格|价钱|报价|单价|price|pricing|quote)/i.test(customerMessage);
   let score = 0;
 
   if (sku && haystack.includes(sku.toLowerCase())) {
@@ -351,6 +354,17 @@ function scoreResult(result, payload, query) {
 
   if (problemType === "specification_question" && /(容量|规格|参数|price|capacity|specification|型号|sku)/i.test(haystack)) {
     score += 25;
+  }
+
+  if (
+    problemType === "specification_question" &&
+    /(价格|价钱|报价|明细|spec|specification|capacity|parameter|参数|规格|容量|型号|sku|price)/i.test(haystack)
+  ) {
+    score += 25;
+  }
+
+  if (asksForPrice && /(价格|价钱|报价|明细|price|pricing|quote)/i.test(haystack)) {
+    score += 35;
   }
 
   if (haystack.includes(String(query || "").toLowerCase())) {
@@ -466,7 +480,8 @@ async function runFeishuCli(payload) {
     type: "feishu",
     title: stripHighlightTags(result?.title_highlighted || "Feishu document"),
     excerpt: stripHighlightTags(result?.summary_highlighted || ""),
-    url: result?.result_meta?.url || ""
+    url: result?.result_meta?.url || "",
+    fetchTarget: result?.result_meta?.token || result?.result_meta?.url || ""
   }));
   const enrichedSources = await enrichSourcesWithFetchedContent(topSources, cwd, rawOutputs);
 
@@ -477,6 +492,7 @@ async function runFeishuCli(payload) {
     problem_type: payload?.problemType || "other",
     doc_title: stripHighlightTags(best.result?.title_highlighted || "Feishu document"),
     doc_link: best.result?.result_meta?.url || "",
+    doc_file_type: String(best.result?.result_meta?.file_type || "").trim().toLowerCase(),
     reply_en: "",
     confidence: Math.min(0.95, 0.45 + best.result._score / 100),
     sources: enrichedSources,

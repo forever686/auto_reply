@@ -5,9 +5,33 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/parsing.test.js && node test/reply-generator.test.js && node test/feishu-cli-client.test.js && node test/ui-source.test.js"
+    "test": "node test/parsing.test.js && node test/reply-generator.test.js && node test/feishu-cli-client.test.js && node test/ui-source.test.js",
+    "dist:win-portable": "electron-builder --win dir --x64 -c.electronDist=node_modules/electron/dist -c.electronVersion=37.10.3"
   },
-  "dependencies": {
-    "electron": "^37.2.6"
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.autoreply.assistant",
+    "productName": "auto-reply-assistant",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

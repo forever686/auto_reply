@@ -12,7 +12,8 @@ const rawOutputElement = document.getElementById("rawOutput");
 const agentNameElement = document.getElementById("agentName");
 const runStatusElement = document.getElementById("runStatus");
 const copyReplyButton = document.getElementById("copyReplyButton");
-const replyTextElement = document.getElementById("replyText");
+const replyZhTextElement = document.getElementById("replyZhText");
+const replyEnTextElement = document.getElementById("replyEnText");
 const replyProviderInput = document.getElementById("replyProvider");
 const tenantOnlyInput = document.getElementById("tenantOnly");
 const replyModelInput = document.getElementById("replyModel");
@@ -31,6 +32,9 @@ const closeSettingsButton = document.getElementById("closeSettingsButton");
 const settingsPanel = document.getElementById("settingsPanel");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
 const progressSteps = document.getElementById("progressSteps");
+const docLink = document.getElementById("docLink");
+const docImagePanel = document.getElementById("docImagePanel");
+const docImagePreview = document.getElementById("docImagePreview");
 
 const REPLY_SETTINGS_STORAGE_KEY = "reply-settings";
 const SEARCH_SETTINGS_STORAGE_KEY = "search-settings";
@@ -144,6 +148,22 @@ function syncCopyReplyButton(replyText) {
   setCopyReplyButtonState("idle");
 }
 
+function buildCopyReplyText(result) {
+  const replyZh = String(result?.reply_zh || "").trim();
+  const replyEn = String(result?.reply_en || "").trim();
+  const sections = [];
+
+  if (replyZh) {
+    sections.push(`中文回复\n${replyZh}`);
+  }
+
+  if (replyEn) {
+    sections.push(`English Reply\n${replyEn}`);
+  }
+
+  return sections.join("\n\n").trim();
+}
+
 function localizeAgentType(agentType) {
   const map = {
     feishu: "Feishu CLI"
@@ -165,6 +185,59 @@ function localizeProblemType(problemType) {
   };
 
   return map[problemType] || problemType || "Unknown";
+}
+
+function isImageFileType(fileType) {
+  return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(
+    String(fileType || "").trim().toLowerCase()
+  );
+}
+
+async function openExternalUrl(url) {
+  const target = String(url || "").trim();
+  if (!target) {
+    return;
+  }
+
+  try {
+    await window.assistantApi.openExternal(target);
+  } catch {
+    setStatus("error", "Unable to open the link in the default browser.");
+  }
+}
+
+function buildSourceListItem(source) {
+  const li = document.createElement("li");
+
+  if (typeof source === "string") {
+    li.textContent = source;
+    return li;
+  }
+
+  const sourceLink = document.createElement("a");
+  sourceLink.className = "source-link";
+  sourceLink.textContent = source.title || source.id || "source";
+
+  const sourceType = document.createElement("span");
+  sourceType.className = "source-type";
+  sourceType.textContent = ` (${source.type || "unknown"})`;
+  sourceLink.appendChild(sourceType);
+
+  const sourceMeta = document.createElement("p");
+  sourceMeta.className = "source-meta";
+  sourceMeta.textContent = source.url || "-";
+
+  if (source.url) {
+    sourceLink.href = source.url;
+    sourceLink.addEventListener("click", async (event) => {
+      event.preventDefault();
+      await openExternalUrl(source.url);
+    });
+  }
+
+  li.appendChild(sourceLink);
+  li.appendChild(sourceMeta);
+  return li;
 }
 
 async function refreshCommandPreview() {
@@ -252,8 +325,9 @@ function renderResult(result) {
   resultPanel.classList.remove("hidden");
 
   document.getElementById("docTitle").textContent = result.doc_title || "-";
+  docImagePanel.classList.add("hidden");
+  docImagePreview.removeAttribute("src");
 
-  const docLink = document.getElementById("docLink");
   if (result.doc_link) {
     docLink.textContent = result.doc_link;
     docLink.href = result.doc_link;
@@ -262,10 +336,17 @@ function renderResult(result) {
     docLink.removeAttribute("href");
   }
 
+  if (result.doc_link && isImageFileType(result.doc_file_type)) {
+    docImagePreview.src = result.doc_link;
+    docImagePanel.classList.remove("hidden");
+  }
+
   document.getElementById("problemType").textContent = localizeProblemType(result.problem_type);
   document.getElementById("productName").textContent = result.product || "-";
-  replyTextElement.textContent = result.reply_en || "-";
-  syncCopyReplyButton(result.reply_en || "");
+  replyZhTextElement.textContent = result.reply_zh || "-";
+  replyEnTextElement.textContent = result.reply_en || "-";
+  copyReplyButton.dataset.replyText = buildCopyReplyText(result);
+  syncCopyReplyButton(copyReplyButton.dataset.replyText || "");
   document.getElementById("notes").textContent = result.notes || "-";
   agentNameElement.textContent = localizeAgentType(result.agent_type);
   runStatusElement.textContent = result.success ? "Completed" : "Failed / incomplete";
@@ -278,13 +359,7 @@ function renderResult(result) {
   sourcesList.innerHTML = "";
   const sources = Array.isArray(result.sources) ? result.sources : [];
   for (const source of sources) {
-    const li = document.createElement("li");
-    if (typeof source === "string") {
-      li.textContent = source;
-    } else {
-      li.textContent = `${source.title || source.id || "source"} (${source.type || "unknown"})`;
-    }
-    sourcesList.appendChild(li);
+    sourcesList.appendChild(buildSourceListItem(source));
   }
 }
 
@@ -385,21 +460,32 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+docLink.addEventListener("click", async (event) => {
+  const href = docLink.getAttribute("href");
+  if (!href || href === "#") {
+    return;
+  }
+
+  event.preventDefault();
+  await openExternalUrl(href);
+});
+
 copyReplyButton.addEventListener("click", async () => {
   const replyText = replyTextElement.textContent || "";
-  if (!String(replyText).trim() || replyText === "-") {
+  const copyText = copyReplyButton.dataset.replyText || "";
+  if (!String(copyText).trim() || copyText === "-") {
     return;
   }
 
   copyReplyButton.disabled = true;
   try {
-    await window.assistantApi.copyText(replyText);
+    await window.assistantApi.copyText(copyText);
     setCopyReplyButtonState("success");
   } catch {
     setCopyReplyButtonState("error");
   } finally {
     copyReplyResetTimer = setTimeout(() => {
-      syncCopyReplyButton(replyText);
+      syncCopyReplyButton(copyText);
     }, 1200);
   }
 });
@@ -520,6 +606,9 @@ form.addEventListener("submit", async (event) => {
     promptPreviewElement.textContent = "-";
     rawOutputElement.textContent = error.message || "Unknown error";
     setStatus("error", `Query failed: ${error.message || "Unknown error"}`);
+    replyZhTextElement.textContent = "-";
+    replyEnTextElement.textContent = "-";
+    copyReplyButton.dataset.replyText = "";
     syncCopyReplyButton("");
   } finally {
     submitButton.disabled = false;

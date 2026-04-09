@@ -73,7 +73,8 @@ async function queryAssistant(payload, onProgress = () => {}) {
       providerResponse.doc_title ||
       (providerResponse.success === false ? "" : `${product || "Matched"} document`),
     doc_link: providerResponse.doc_link || "",
-    reply_en: providerResponse.success === false || replyResponse.success === false ? "" : replyResponse.reply || "",
+    reply_zh: providerResponse.success === false || replyResponse.success === false ? "" : replyResponse.replyZh || "",
+    reply_en: providerResponse.success === false || replyResponse.success === false ? "" : replyResponse.replyEn || "",
     confidence:
       typeof providerResponse.confidence === "number"
         ? providerResponse.confidence

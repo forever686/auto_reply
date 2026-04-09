@@ -29,6 +29,47 @@ run("UI source does not contain common mojibake characters", () => {
     /鈿|鉁|猝|璁剧疆|澶嶅埗|鍏抽棴|妗岄潰|褰撳墠|鍥炲/
   );
 });
+run("document links are opened through the system browser", () => {
+  assert.match(mainSource, /clipboard, ipcMain, shell/);
+  assert.match(mainSource, /ipcMain\.handle\("assistant:open-external"/);
+  assert.match(mainSource, /shell\.openExternal/);
+  assert.match(preloadSource, /openExternal\(url\)/);
+  assert.match(preloadSource, /assistant:open-external/);
+  assert.match(rendererSource, /docLink\.addEventListener\("click"/);
+  assert.match(rendererSource, /window\.assistantApi\.openExternal/);
+});
+
+run("matched sources render titles with clickable URLs", () => {
+  assert.match(rendererSource, /const sourceLink = document\.createElement\("a"\)/);
+  assert.match(rendererSource, /const sourceMeta = document\.createElement\("p"\)/);
+  assert.match(rendererSource, /source\.url \|\| "-"/);
+  assert.match(rendererSource, /sourceLink\.textContent = source\.title/);
+  assert.match(rendererSource, /sourceLink\.href = source\.url/);
+  assert.match(stylesSource, /\.source-link/);
+  assert.match(stylesSource, /\.source-meta/);
+});
+
+run("suggested replies render separate Chinese and English blocks", () => {
+  assert.match(htmlSource, /id="replyZhText"/);
+  assert.match(htmlSource, /id="replyEnText"/);
+  assert.match(htmlSource, /中文回复/);
+  assert.match(htmlSource, /English Reply/);
+  assert.match(rendererSource, /const replyZhTextElement = document\.getElementById\("replyZhText"\)/);
+  assert.match(rendererSource, /const replyEnTextElement = document\.getElementById\("replyEnText"\)/);
+  assert.match(rendererSource, /replyZhTextElement\.textContent = result\.reply_zh \|\| "-"/);
+  assert.match(rendererSource, /replyEnTextElement\.textContent = result\.reply_en \|\| "-"/);
+  assert.match(stylesSource, /\.reply-language-grid/);
+  assert.match(stylesSource, /\.reply-language-block/);
+});
+
+run("image hits render a conditional preview block", () => {
+  assert.match(htmlSource, /id="docImagePanel"/);
+  assert.match(htmlSource, /id="docImagePreview"/);
+  assert.match(rendererSource, /docImagePanel\.classList\.add\("hidden"\)/);
+  assert.match(rendererSource, /docImagePreview\.src = result\.doc_link/);
+  assert.match(rendererSource, /result\.doc_file_type/);
+  assert.match(stylesSource, /\.doc-image-preview/);
+});
 
 run("settings panel supports keyboard close behavior", () => {
   assert.match(rendererSource, /document\.addEventListener\("keydown"/);
@@ -103,6 +144,7 @@ run("help panel matches the settings panel interaction pattern", () => {
 run("help panel documents Feishu CLI setup and verification", () => {
   assert.match(htmlSource, /飞书 CLI/);
   assert.match(htmlSource, /lark-cli auth login/);
+  assert.match(htmlSource, /search:docs:read/);
   assert.match(htmlSource, /lark-cli docs \+search/);
   assert.match(htmlSource, /need_user_authorization/);
 });

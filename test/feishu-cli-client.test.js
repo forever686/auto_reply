@@ -156,3 +156,119 @@ run("runFeishuCli enriches the top source with fetched document content", async 
   assert.match(result.sources[0].excerpt, /容量：1\.2L/);
   assert.ok(calls.some((command) => command.includes("docs +fetch")));
 });
+
+run("runFeishuCli fetches file content by token and prioritizes price documents for price questions", async () => {
+  const calls = [];
+  const spawnImpl = (_file, args) => {
+    calls.push(args.join(" "));
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+
+    process.nextTick(() => {
+      const command = args.join(" ");
+      const payload = command.includes("docs +fetch")
+        ? {
+            ok: true,
+            data: {
+              markdown: "FS-001 price: 199 CNY"
+            }
+          }
+        : {
+            ok: true,
+            data: {
+              results: [
+                {
+                  title_highlighted: "SKU <h>FS-001</h>.docx",
+                  summary_highlighted: "SKU:<h>FS-001</h> MADE IN CHINA",
+                  result_meta: {
+                    token: "token_sku",
+                    url: "https://example.feishu.cn/file/token_sku",
+                    is_cross_tenant: false
+                  }
+                },
+                {
+                  title_highlighted: "<h>FS-001</h>价格明细.docx",
+                  summary_highlighted: "",
+                  result_meta: {
+                    token: "token_price",
+                    url: "https://example.feishu.cn/file/token_price",
+                    is_cross_tenant: false
+                  }
+                }
+              ]
+            }
+          };
+
+      child.stdout.emit("data", Buffer.from(JSON.stringify(payload), "utf8"));
+      child.emit("close", 0);
+    });
+
+    return child;
+  };
+  const { runFeishuCli } = loadClientWithSpawn(spawnImpl);
+
+  const result = await runFeishuCli({
+    customerMessage: "FS-001价格",
+    productHint: "FS-001",
+    product: "FS-001",
+    problemType: "specification_question",
+    agentType: "feishu",
+    aiQueries: [],
+    tenantOnly: true
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.doc_title, "FS-001价格明细.docx");
+  assert.equal(result.sources[0].id, "token_price");
+  assert.match(result.sources[0].excerpt, /199 CNY/);
+  assert.ok(calls.some((command) => command.includes("docs +fetch") && command.includes("token_price")));
+  assert.ok(!calls.some((command) => command.includes("docs +fetch") && command.includes("https://example.feishu.cn/file/token_price")));
+});
+
+run("runFeishuCli exposes the matched file type for image previews", async () => {
+  const spawnImpl = (_file, _args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+
+    process.nextTick(() => {
+      const payload = {
+        ok: true,
+        data: {
+          results: [
+            {
+              title_highlighted: "FS-IMG-001.png",
+              summary_highlighted: "",
+              result_meta: {
+                token: "image_token",
+                url: "https://example.feishu.cn/file/image_token",
+                file_type: "png",
+                is_cross_tenant: false
+              }
+            }
+          ]
+        }
+      };
+
+      child.stdout.emit("data", Buffer.from(JSON.stringify(payload), "utf8"));
+      child.emit("close", 0);
+    });
+
+    return child;
+  };
+  const { runFeishuCli } = loadClientWithSpawn(spawnImpl);
+
+  const result = await runFeishuCli({
+    customerMessage: "FS-IMG-001",
+    productHint: "FS-IMG-001",
+    product: "FS-IMG-001",
+    problemType: "other",
+    agentType: "feishu",
+    aiQueries: [],
+    tenantOnly: true
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.doc_file_type, "png");
+});

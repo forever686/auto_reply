@@ -1,5 +1,5 @@
 const path = require("node:path");
-const { app, BrowserWindow, clipboard, ipcMain } = require("electron");
+const { app, BrowserWindow, clipboard, ipcMain, shell } = require("electron");
 const { queryAssistant } = require("./query/orchestrator");
 const { testReplyProviderConnection } = require("./query/reply-generator");
 const { getCommandPreview } = require("./query/providers");
@@ -38,6 +38,16 @@ ipcMain.handle("assistant:test-reply-connection", (_event, replySettings) => {
 
 ipcMain.handle("assistant:copy-text", (_event, text) => {
   clipboard.writeText(String(text || ""));
+  return { success: true };
+});
+
+ipcMain.handle("assistant:open-external", async (_event, url) => {
+  const target = String(url || "").trim();
+  if (!target) {
+    return { success: false };
+  }
+
+  await shell.openExternal(target);
   return { success: true };
 });
 

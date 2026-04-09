@@ -33,8 +33,8 @@ function buildReplyPrompt(context) {
 
   return [
     "You are a customer support reply assistant.",
-    "Return strict JSON only with this shape: {\"answer\":\"...\",\"claims\":[{\"source_id\":\"...\",\"quote\":\"exact supporting text\"}]}",
-    "Write one concise, helpful English reply for the customer in the answer field.",
+    'Return strict JSON only with this shape: {"answer_zh":"...","answer_en":"...","claims":[{"source_id":"...","quote":"exact supporting text"}]}',
+    "Write one concise, helpful Simplified Chinese reply in answer_zh and one concise, helpful English reply in answer_en.",
     "Answer the current customer question directly before offering any extra help.",
     "Base the reply only on the provided retrieval context and reply rules.",
     "Treat the matched source excerpts as evidence and use them when they answer the question.",
@@ -89,7 +89,8 @@ function parseStructuredReply(text) {
   const rawText = String(text || "").trim();
   if (!rawText) {
     return {
-      answer: "",
+      answerZh: "",
+      answerEn: "",
       claims: [],
       rawText
     };
@@ -101,17 +102,30 @@ function parseStructuredReply(text) {
   try {
     const parsed = JSON.parse(parseTarget);
     return {
-      answer: String(parsed?.answer || "").trim(),
+      answerZh: String(parsed?.answer_zh || "").trim(),
+      answerEn: String(parsed?.answer_en || parsed?.answer || "").trim(),
       claims: Array.isArray(parsed?.claims) ? parsed.claims : [],
       rawText
     };
   } catch {
     return {
-      answer: rawText,
+      answerZh: "",
+      answerEn: rawText,
       claims: [],
       rawText
     };
   }
+}
+
+function parseJsonPayload(text) {
+  const rawText = String(text || "").trim();
+  if (!rawText) {
+    throw new Error("Model returned empty output.");
+  }
+
+  const fencedMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const parseTarget = fencedMatch ? fencedMatch[1].trim() : rawText;
+  return JSON.parse(parseTarget);
 }
 
 function sourceEvidenceText(sources) {
@@ -147,13 +161,22 @@ function buildUnsupportedReply(context) {
   const productText = context.product ? ` for ${context.product}` : "";
   const linkText = context.docLink ? ` The closest document I found is: ${context.docLink}` : "";
 
-  return [
-    `Hello, thank you for your message. I could not confirm the requested details${productText} from the retrieved support materials.`,
-    linkText,
-    "Please share any additional product label, SKU, or order details so we can check again."
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return {
+    replyZh: [
+      `您好，感谢您的咨询。我们暂时无法从已检索到的资料中确认${context.product ? `${context.product} 的` : ""}相关细节。`,
+      context.docLink ? `目前找到的最接近资料链接为：${context.docLink}` : "",
+      "如果您愿意提供更多产品标签、SKU 或订单信息，我们可以继续帮您核实。"
+    ]
+      .filter(Boolean)
+      .join(" "),
+    replyEn: [
+      `Hello, thank you for your message. I could not confirm the requested details${productText} from the retrieved support materials.`,
+      linkText,
+      "Please share any additional product label, SKU, or order details so we can check again."
+    ]
+      .filter(Boolean)
+      .join(" ")
+  };
 }
 
 async function callOllama(settings, prompt) {
@@ -320,7 +343,7 @@ async function extractSearchQueries(context) {
   try {
     const response = await runModelPrompt(context.replySettings, prompt);
     const text = String(response.text || "").trim();
-    const parsed = JSON.parse(text);
+    const parsed = parseJsonPayload(text);
     const queries = normalizeExtractedQueries(parsed?.queries);
 
     if (queries.length === 0) {
@@ -360,12 +383,13 @@ async function generateReply(context) {
     rulesContent: rules.content
   });
   const provider = String(context?.replySettings?.provider || "template").trim() || "template";
-  const fallbackReply = buildFallbackReply(context);
+  const fallbackReplyEn = buildFallbackReply(context);
 
   if (provider === "template") {
     return {
       success: true,
-      reply: fallbackReply,
+      replyZh: "",
+      replyEn: fallbackReplyEn,
       provider: "template",
       model: "",
       promptPreview: prompt,
@@ -378,13 +402,18 @@ async function generateReply(context) {
   try {
     const response = await runModelPrompt(context.replySettings, prompt);
     const structuredReply = parseStructuredReply(response.text || "");
+    const unsupportedReply = buildUnsupportedReply(context);
     const reply = hasUnsupportedClaims(structuredReply.claims, context.sources)
-      ? buildUnsupportedReply(context)
-      : structuredReply.answer || fallbackReply;
+      ? unsupportedReply
+      : {
+          replyZh: structuredReply.answerZh || "",
+          replyEn: structuredReply.answerEn || fallbackReplyEn
+        };
 
     return {
       success: true,
-      reply,
+      replyZh: reply.replyZh,
+      replyEn: reply.replyEn,
       provider: response.provider,
       model: response.model,
       promptPreview: prompt,
@@ -396,7 +425,8 @@ async function generateReply(context) {
   } catch (error) {
     return {
       success: false,
-      reply: "",
+      replyZh: "",
+      replyEn: "",
       provider,
       model: String(context?.replySettings?.model || "").trim(),
       promptPreview: prompt,

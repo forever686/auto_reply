@@ -4,6 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {
+  extractSearchQueries,
   generateReply,
   testReplyProviderConnection
 } = require("../src/query/reply-generator");
@@ -36,7 +37,8 @@ run("generateReply uses the selected model and injects reply rules into the prom
             {
               message: {
                 content: JSON.stringify({
-                  answer: "The current listed price for CM-2200 is $99.",
+                  answer_zh: "CM-2200 当前标价为 99 美元。",
+                  answer_en: "The current listed price for CM-2200 is $99.",
                   claims: [{ source_id: "doc_1", quote: "CM-2200 Product Manual" }]
                 })
               }
@@ -64,9 +66,12 @@ run("generateReply uses the selected model and injects reply rules into the prom
       }
     });
 
-    assert.equal(result.reply, "The current listed price for CM-2200 is $99.");
+    assert.equal(result.replyZh, "CM-2200 当前标价为 99 美元。");
+    assert.equal(result.replyEn, "The current listed price for CM-2200 is $99.");
     assert.match(result.promptPreview, /Return strict JSON only/i);
     assert.match(result.promptPreview, /Answer the current customer question directly/i);
+    assert.match(result.promptPreview, /answer_zh/i);
+    assert.match(result.promptPreview, /answer_en/i);
     assert.match(result.promptPreview, /Always answer the exact customer question first\./i);
     assert.equal(calls.length, 1);
   } finally {
@@ -87,7 +92,8 @@ run("generateReply parses fenced JSON replies and shows only the answer", async 
               content: [
                 "```json",
                 "{",
-                '  "answer": "The suggested retail price for CM-2200 is 299 CNY.",',
+                '  "answer_zh": "CM-2200 建议零售价为 299 元。",',
+                '  "answer_en": "The suggested retail price for CM-2200 is 299 CNY.",',
                 '  "claims": [{"source_id":"doc_1","quote":"Suggested retail price: 299 CNY."}]',
                 "}",
                 "```"
@@ -123,7 +129,47 @@ run("generateReply parses fenced JSON replies and shows only the answer", async 
       }
     });
 
-    assert.equal(result.reply, "The suggested retail price for CM-2200 is 299 CNY.");
+    assert.equal(result.replyZh, "CM-2200 建议零售价为 299 元。");
+    assert.equal(result.replyEn, "The suggested retail price for CM-2200 is 299 CNY.");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+run("extractSearchQueries accepts fenced JSON responses from the model", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    async json() {
+      return {
+        message: {
+          content: [
+            "```json",
+            "{",
+            '  "queries": ["FS-001 price", "FS-001 price detail"]',
+            "}",
+            "```"
+          ].join("\n")
+        }
+      };
+    }
+  });
+
+  try {
+    const result = await extractSearchQueries({
+      customerMessage: "FS-001价格",
+      productHint: "FS-001",
+      product: "FS-001",
+      problemType: "specification_question",
+      replySettings: {
+        provider: "ollama",
+        model: "gemma4:e2b",
+        baseUrl: "http://127.0.0.1:11434"
+      }
+    });
+
+    assert.deepEqual(result.queries, ["FS-001 price", "FS-001 price detail"]);
+    assert.match(result.notes, /AI keyword extraction succeeded via ollama/i);
   } finally {
     global.fetch = originalFetch;
   }
@@ -143,7 +189,8 @@ run("generateReply includes retrieval excerpts in the model prompt", async () =>
             {
               message: {
                 content: JSON.stringify({
-                  answer: "The CM-2200 is listed at RMB 299.",
+                  answer_zh: "CM-2200 标价为 299 元。",
+                  answer_en: "The CM-2200 is listed at RMB 299.",
                   claims: [{ source_id: "doc_1", quote: "Suggested retail price: 299 CNY." }]
                 })
               }
@@ -178,7 +225,7 @@ run("generateReply includes retrieval excerpts in the model prompt", async () =>
       }
     });
 
-    assert.equal(result.reply, "The CM-2200 is listed at RMB 299.");
+    assert.equal(result.replyEn, "The CM-2200 is listed at RMB 299.");
     assert.match(capturedPrompt, /Suggested retail price: 299 CNY\./);
   } finally {
     global.fetch = originalFetch;
@@ -210,11 +257,12 @@ run("generateReply falls back when the model claims unsupported information", as
         choices: [
           {
             message: {
-              content: JSON.stringify({
-                answer: "The CM-2200 costs RMB 499 and includes free shipping.",
-                claims: [{ source_id: "doc_1", quote: "Free shipping is included for every order." }]
-              })
-            }
+                content: JSON.stringify({
+                  answer_zh: "CM-2200 售价为 499 元并且包邮。",
+                  answer_en: "The CM-2200 costs RMB 499 and includes free shipping.",
+                  claims: [{ source_id: "doc_1", quote: "Free shipping is included for every order." }]
+                })
+              }
           }
         ]
       };
@@ -244,8 +292,8 @@ run("generateReply falls back when the model claims unsupported information", as
       }
     });
 
-    assert.doesNotMatch(result.reply, /RMB 499/);
-    assert.match(result.reply, /could not confirm/i);
+    assert.doesNotMatch(result.replyEn, /RMB 499/);
+    assert.match(result.replyEn, /could not confirm/i);
   } finally {
     global.fetch = originalFetch;
   }
@@ -260,11 +308,12 @@ run("generateReply returns a no-result fallback when nothing useful was retrieve
         choices: [
           {
             message: {
-              content: JSON.stringify({
-                answer: "The current materials do not contain pricing information.",
-                claims: []
-              })
-            }
+                content: JSON.stringify({
+                  answer_zh: "当前资料中没有价格信息。",
+                  answer_en: "The current materials do not contain pricing information.",
+                  claims: []
+                })
+              }
           }
         ]
       };
@@ -287,7 +336,7 @@ run("generateReply returns a no-result fallback when nothing useful was retrieve
       }
     });
 
-    assert.match(result.reply, /do not contain pricing information/i);
+    assert.match(result.replyEn, /do not contain pricing information/i);
   } finally {
     global.fetch = originalFetch;
   }
@@ -302,11 +351,12 @@ run("generateReply accepts equivalent fact wording when structured claims match 
         choices: [
           {
             message: {
-              content: JSON.stringify({
-                answer: "Based on the retrieved materials, the CM-2200 is priced at RMB 299.",
-                claims: [{ source_id: "doc_1", quote: "Suggested retail price: 299 CNY." }]
-              })
-            }
+                content: JSON.stringify({
+                  answer_zh: "根据检索资料，CM-2200 价格为 299 元。",
+                  answer_en: "Based on the retrieved materials, the CM-2200 is priced at RMB 299.",
+                  claims: [{ source_id: "doc_1", quote: "Suggested retail price: 299 CNY." }]
+                })
+              }
           }
         ]
       };
@@ -337,8 +387,8 @@ run("generateReply accepts equivalent fact wording when structured claims match 
       }
     });
 
-    assert.match(result.reply, /RMB 299/);
-    assert.doesNotMatch(result.reply, /could not find confirmed information/i);
+    assert.match(result.replyEn, /RMB 299/);
+    assert.doesNotMatch(result.replyEn, /could not find confirmed information/i);
   } finally {
     global.fetch = originalFetch;
   }
@@ -367,9 +417,61 @@ run("generateReply returns an explicit failure when model generation fails", asy
     });
 
     assert.equal(result.success, false);
-    assert.equal(result.reply, "");
+    assert.equal(result.replyEn, "");
+    assert.equal(result.replyZh, "");
     assert.match(result.notes, /Model generation failed/i);
     assert.doesNotMatch(result.notes, /fallback template used/i);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+run("generateReply falls back to English-only text when the model returns the legacy answer field", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    async json() {
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                answer: "Please review the linked manual for setup steps.",
+                claims: [{ source_id: "doc_1", quote: "Setup guide available in the manual." }]
+              })
+            }
+          }
+        ]
+      };
+    }
+  });
+
+  try {
+    const result = await generateReply({
+      customerMessage: "How do I install this machine?",
+      product: "CM-2200",
+      problemType: "installation_help",
+      docTitle: "CM-2200 Setup Guide",
+      docLink: "https://example.com/setup",
+      sources: [
+        {
+          id: "doc_1",
+          type: "feishu",
+          title: "CM-2200 Setup Guide",
+          excerpt: "Setup guide available in the manual.",
+          url: "https://example.com/setup"
+        }
+      ],
+      replySettings: {
+        provider: "openai-compatible",
+        model: "gpt-4o-mini",
+        baseUrl: "https://api.example.com/v1",
+        apiKey: "test-key"
+      }
+    });
+
+    assert.equal(result.replyZh, "");
+    assert.equal(result.replyEn, "Please review the linked manual for setup steps.");
   } finally {
     global.fetch = originalFetch;
   }

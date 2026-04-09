@@ -92,6 +92,9 @@
             <h3>&#25991;&#26723;&#20449;&#24687;</h3>
             <p id="docTitle" class="result-title">-</p>
             <a id="docLink" href="#" target="_blank" rel="noreferrer">-</a>
+            <div id="docImagePanel" class="doc-image-panel hidden">
+              <img id="docImagePreview" class="doc-image-preview" alt="Matched product image preview" />
+            </div>
           </article>
 
           <article class="result-card">
@@ -115,7 +118,16 @@
               &#10697;
             </button>
           </div>
-          <pre id="replyText">-</pre>
+          <div class="reply-language-grid">
+            <section class="reply-language-block">
+              <h4>中文回复</h4>
+              <pre id="replyZhText">-</pre>
+            </section>
+            <section class="reply-language-block">
+              <h4>English Reply</h4>
+              <pre id="replyEnText">-</pre>
+            </section>
+          </div>
         </article>
 
         <article class="result-card">
@@ -179,7 +191,8 @@
           <li>查看文档信息、命中来源和建议回复。</li>
           <li>如果查询不准，展开“执行详情”查看检索关键词，再补充更精确的商品信息。</li>
           <li>使用模型回复前，请先在设置里配置 Ollama 或 OpenAI Compatible。</li>
-          <li>飞书 CLI：另一台电脑需要先安装 lark-cli，并用 <code>lark-cli auth login --domain 你的飞书域名</code> 登录授权。</li>
+          <li>飞书 CLI：另一台电脑需要先安装 lark-cli，并先运行 <code>lark-cli auth login</code> 完成基础登录。</li>
+          <li>飞书 CLI：如果文档搜索提示缺少权限，请运行 <code>lark-cli.cmd auth login --scope "search:docs:read"</code> 补充搜索授权。</li>
           <li>飞书 CLI：用 <code>lark-cli docs +search --as user --query "咖啡机" --format json</code> 验证能搜索文档。</li>
           <li>如果执行详情里出现 <code>need_user_authorization</code>，说明授权过期，需要重新运行 <code>lark-cli auth login</code>。</li>
         </ol>
